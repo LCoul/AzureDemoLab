@@ -1,6 +1,6 @@
-# https://learn.microsoft.com/en-us/azure/azure-arc/servers/onboard-service-principal
+# https://learn.microsoft.com/en-us/azure/azure-arc/servers/onboard-group-policy-powershell
 # Run the script in PowerShell as administrator
-# The script will create a resource group, a remote share, and a service principal for the Arc server onboarding for Windows Servers
+
 Clear-Host
 Write-Verbose "Connecting to Azure..."
 Connect-AzAccount | Out-Null
@@ -56,31 +56,50 @@ Write-Verbose "Creating a resource group"
 New-AzResourceGroup -Name $resourceGroup -Location $location | Out-Null
 
 Write-Verbose "Creating a remote share"
-New-Item -ItemType Directory -Name "AzureArc" -Path "$env:HOMEDRIVE\"
-New-SmbShare -Name "AzureArc" -Path "$env:HOMEDRIVE\AzureArc" -FullAccess "$env:USERDOMAIN\$env:USERNAME" | Out-Null
+$path = "$env:HOMEDRIVE\AzureArc"
+If(!(Test-Path -PathType container $path))
+{
+      New-Item -ItemType Directory -Path $path
+}
+New-SmbShare -Name "AzureArc" -Path $path -FullAccess "$env:USERDOMAIN\$env:USERNAME" | Out-Null
 $RemoteShare = (Get-SmbShare | Where-Object { $_.Name -eq "AzureArc" }).Name
 
+Write-Verbose "Downloading the Azure Connected Machine Agent and the Arc enabled servers group policy"
+Invoke-WebRequest -Uri "https://aka.ms/AzureConnectedMachineAgent" -OutFile "$path\AzureConnectedMachineAgent.msi"
+Write-Verbose "Downloading the Azure Connected Machine Agent and the Arc enabled servers group policy"
+Invoke-WebRequest -Uri "https://github.com/Azure/ArcEnabledServersGroupPolicy/releases/download/1.0.5/ArcEnabledServersGroupPolicy_v1.0.5.zip" -OutFile "$path\ArcEnabledServersGroupPolicy_v1.0.5.zip"
+
+Write-Verbose "Extracting the Arc enabled servers group policy from the archive file"
+Expand-Archive -LiteralPath "$($path)\ArcEnabledServersGroupPolicy_v1.0.5.zip" -DestinationPath $path
+Set-Location -Path "$($path)\ArcEnabledServersGroupPolicy_v1.0.5"
+
+
+
 Write-Verbose "Creating a service principal"
-$ArcServerOnboardingDetail = New-Item -ItemType File -Path "$env:HOMEDRIVE\$RemoteShare\ArcServerOnboarding.txt"
+$ArcServerOnboardingDetail = New-Item -ItemType File -Path "$path\ArcServerOnboarding.txt"
 $ServicePrincipal = New-AzADServicePrincipal -DisplayName "Arc server onboarding account" -Role "Azure Connected Machine Onboarding"
 $ServicePrincipal | Format-Table AppId, @{ Name = "Secret"; Expression = { $_.PasswordCredentials.SecretText } }
 
 $AppId = $ServicePrincipal.AppId
 $Secret = $ServicePrincipal.PasswordCredentials.SecretText
 
-"Service Principal ID: $($AppId)`n------------------------------------------------------------------" | Out-File -FilePath $ArcServerOnboardingDetail
-"Service Principal Secret: $($Secret)`n------------------------------------------------------------------`n" | Out-File -FilePath $ArcServerOnboardingDetail -Append
-
-Write-Host -ForegroundColor Green "The AppId, Secret, and the onboarding script have been saved to $ArcServerOnboardingDetail"
-Write-Host
-# Write-Host -ForegroundColor Green "Select the following remote share, subscription, resourcegroup, location, and service principal`nwhen you generate the onboarding script from the Azure portal:"
-# Write-Host -ForegroundColor Cyan "Remote share name: $RemoteShare`nSubscription: $subName`nResource group: $resourceGroup`nLocation: $location`nService principal: $($ServicePrincipal.AppId)"
-
 $DC = Get-ADDomainController
 $DomainFQDN = $DC.Domain
 $ReportServerFQDN = $DC.HostName
 $TenantId = $subs[$subRank - 1].TenantId
 
+.\DeployGPO.ps1 -DomainFQDN $DomainFQDN `
+-ReportServerFQDN $ReportServerFQDN `
+-ArcRemoteShare $RemoteShare `
+-ServicePrincipalSecret $Secret `
+-ServicePrincipalClientId $AppId `
+-SubscriptionId $subId `
+-ResourceGroup $resourceGroup `
+-Location $Location `
+-TenantId $TenantId
+
+"Service Principal ID: $($AppId)`n------------------------------------------------------------------" | Out-File -FilePath $ArcServerOnboardingDetail
+"Service Principal Secret: $($Secret)`n------------------------------------------------------------------`n" | Out-File -FilePath $ArcServerOnboardingDetail -Append
 ".\DeployGPO.ps1 -DomainFQDN $DomainFQDN `
 -ReportServerFQDN $ReportServerFQDN `
 -ArcRemoteShare $RemoteShare `
@@ -90,3 +109,6 @@ $TenantId = $subs[$subRank - 1].TenantId
 -ResourceGroup $resourceGroup `
 -Location $Location `
 -TenantId $TenantId" | Out-File -FilePath $ArcServerOnboardingDetail -Append
+
+Write-Host -ForegroundColor Green "The AppId, Secret, and the onboarding script have been saved to $ArcServerOnboardingDetail"
+Write-Host
