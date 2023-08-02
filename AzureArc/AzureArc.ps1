@@ -2,6 +2,8 @@
 # Run the script in PowerShell as administrator
 
 Clear-Host
+
+# 1. CONNECT TO AZURE
 Write-Verbose "Connecting to Azure..."
 Connect-AzAccount | Out-Null
 $subs = @()
@@ -31,14 +33,14 @@ Write-Host
 Write-Host -ForegroundColor Cyan "Subscription name: `"$subName`" will be use for your deployment" 
 Set-AzContext -SubscriptionId $subId | Out-Null
 
-# Register resource providers
+# 2. Register resource providers
 Write-Verbose "Registering resource providers"
 Register-AzResourceProvider -ProviderNamespace Microsoft.HybridCompute | Out-Null
 Register-AzResourceProvider -ProviderNamespace Microsoft.GuestConfiguration | Out-Null
 Register-AzResourceProvider -ProviderNamespace Microsoft.HybridConnectivity | Out-Null
 Register-AzResourceProvider -ProviderNamespace Microsoft.AzureArcData | Out-Null
 
-# Create a resource group
+
 $resourceGroup = Read-Host "Provide a resourcegroup name for your deployment"
 while ($resourceGroup -eq "") {
     Write-Host "You must enter a name for your new resource group" -ForegroundColor Yellow
@@ -51,10 +53,11 @@ while ($locations -notcontains $location.ToLower()) {
     Write-Host "You must enter a valid location" -ForegroundColor Yellow
     $location = Read-Host "Provide a location for your deployment (e.g. West US, WestUS, East US,EastUS2, etc.)"
 }
-#Create a resourcegroup
+# 3. Create a resource group
 Write-Verbose "Creating a resource group"
 New-AzResourceGroup -Name $resourceGroup -Location $location | Out-Null
 
+# 4. Create a remote share
 Write-Verbose "Creating a remote share"
 $path = "$env:HOMEDRIVE\AzureArc"
 If(!(Test-Path -PathType container $path))
@@ -112,3 +115,4 @@ $TenantId = $subs[$subRank - 1].TenantId
 
 Write-Host -ForegroundColor Green "The AppId, Secret, and the onboarding script have been saved to $ArcServerOnboardingDetail"
 Write-Host
+
