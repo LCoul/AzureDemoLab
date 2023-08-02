@@ -70,9 +70,16 @@ $ServicePrincipal | Format-Table AppId, @{ Name = "Secret"; Expression = { $_.Pa
 
 Write-Host -ForegroundColor Yellow "Go to the Azure portal and ."
 
+
+$DomainFQDN = 
+$ReportServerFQDN =
+$ArcRemoteShare =
 $ServicePrincipalClientId = "$ServicePrincipal.AppId";
 $ServicePrincipalSecret = $ServicePrincipal.PasswordCredentials.SecretText;
-$DomainFQDN = "dev.lab";
+$SubscriptionId = $subId;
+$ResourceGroup = $resourceGroup;
+$Location = $location;
+$TenantId = $subs[$subRank - 1].TenantId;
 
 .\DeployGPO.ps1 -DomainFQDN dev.lab `
 -ReportServerFQDN srv1.dev.lab `
