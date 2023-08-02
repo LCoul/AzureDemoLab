@@ -45,7 +45,7 @@ while ($resourceGroup -eq "") {
     $resourceGroup = Read-Host "Provide a name for your new resource group" 
 }
 $resourceGroup = $resourceGroup + (Get-Random -Minimum 100000 -Maximum 1000000)
-$location = Read-Host "Provide a location for your deployment (e.g. West US, East US, etc.)"
+$location = Read-Host "Provide a location for your deployment (e.g. West US, WestUS, East US,EastUS2, etc.)"
 $locations = @("eastus", "eastus2", "westus", "westus2", "east us", "east us 2", "west us", "west us 2")
 while ($locations -notcontains $location.ToLower()) {
     Write-Host "You must enter a valid location" -ForegroundColor Yellow
@@ -61,40 +61,32 @@ New-SmbShare -Name "AzureArc" -Path "$env:HOMEDRIVE\AzureArc" -FullAccess "$env:
 $RemoteShare = (Get-SmbShare | Where-Object { $_.Name -eq "AzureArc" }).Name
 
 Write-Verbose "Creating a service principal"
-$ServicePrincipalDetail = New-Item -ItemType File -Path "$env:HOMEDRIVE\$RemoteShare\ArcServerOnboarding.txt"
+$ArcServerOnboardingDetail = New-Item -ItemType File -Path "$env:HOMEDRIVE\$RemoteShare\ArcServerOnboarding.txt"
 $ServicePrincipal = New-AzADServicePrincipal -DisplayName "Arc server onboarding account" -Role "Azure Connected Machine Onboarding"
 $ServicePrincipal | Format-Table AppId, @{ Name = "Secret"; Expression = { $_.PasswordCredentials.SecretText } }
 
-"Service Principal ID: $($ServicePrincipal.AppId)" | Out-File -FilePath $ServicePrincipalDetail
-"Service Principal Secret: $($ServicePrincipal.PasswordCredentials.SecretText)" | Out-File -FilePath $ServicePrincipalDetail -Append
+$AppId = $ServicePrincipal.AppId
+$Secret = $ServicePrincipal.PasswordCredentials.SecretText
 
-Write-Host -ForegroundColor Yellow "Go to the Azure portal and ."
+"Service Principal ID: $($AppId)`n-------------------------------------------------------------------" | Out-File -FilePath $ArcServerOnboardingDetail
+"Service Principal Secret: $($Secret)`n-------------------------------------------------------------------`n" | Out-File -FilePath $ArcServerOnboardingDetail -Append
 
+Write-Host -ForegroundColor Green "The AppId, Secret, and the onboarding script have been saved to $ArcServerOnboardingDetail"
+Write-Host
+# Write-Host -ForegroundColor Green "Select the following remote share, subscription, resourcegroup, location, and service principal`nwhen you generate the onboarding script from the Azure portal:"
+# Write-Host -ForegroundColor Cyan "Remote share name: $RemoteShare`nSubscription: $subName`nResource group: $resourceGroup`nLocation: $location`nService principal: $($ServicePrincipal.AppId)"
 
-$DomainFQDN = 
-$ReportServerFQDN =
-$ArcRemoteShare =
-$ServicePrincipalClientId = "$ServicePrincipal.AppId";
-$ServicePrincipalSecret = $ServicePrincipal.PasswordCredentials.SecretText;
-$SubscriptionId = $subId;
-$ResourceGroup = $resourceGroup;
-$Location = $location;
-$TenantId = $subs[$subRank - 1].TenantId;
+$DC = Get-ADDomainController
+$DomainFQDN = $DC.Domain
+$ReportServerFQDN = $DC.HostName
+$TenantId = $subs[$subRank - 1].TenantId
 
-.\DeployGPO.ps1 -DomainFQDN dev.lab `
--ReportServerFQDN srv1.dev.lab `
--ArcRemoteShare AzureArc `
--ServicePrincipalSecret $ServicePrincipalSecret `
--ServicePrincipalClientId $ServicePrincipalClientId `
--SubscriptionId 2272a9d6-ae77-4ecb-8852-5c8866ee5a51 `
--ResourceGroup DemoAzureArc929575 `
--Location eastus `
--TenantId 3931f026-9b8a-4d3a-85b9-f8990331fe84
-
-$ServicePrincipal.AppId
-
-
-
-Write-Host -ForegroundColor Green "The service principal ID and secret have been saved to $ServicePrincipalDetail"
-Write-Host -ForegroundColor Green "Select the following remote share, subscription, resourcegroup, location, and service principal`nwhen you generate the onboarding script from the Azure portal:"
-Write-Host -ForegroundColor Cyan "Remote share name: $RemoteShare`nSubscription: $subName`nResource group: $resourceGroup`nLocation: $location`nService principal: $($ServicePrincipal.AppId)"
+".\DeployGPO.ps1 -DomainFQDN $DomainFQDN `
+-ReportServerFQDN $ReportServerFQDN `
+-ArcRemoteShare $RemoteShare `
+-ServicePrincipalSecret $Secret `
+-ServicePrincipalClientId $AppId `
+-SubscriptionId $subId `
+-ResourceGroup $resourceGroup `
+-Location $Location `
+-TenantId $TenantId" | Out-File -FilePath $ArcServerOnboardingDetail -Append
