@@ -68,8 +68,8 @@ $ServicePrincipal | Format-Table AppId, @{ Name = "Secret"; Expression = { $_.Pa
 $AppId = $ServicePrincipal.AppId
 $Secret = $ServicePrincipal.PasswordCredentials.SecretText
 
-"Service Principal ID: $($AppId)`n-------------------------------------------------------------------" | Out-File -FilePath $ArcServerOnboardingDetail
-"Service Principal Secret: $($Secret)`n-------------------------------------------------------------------`n" | Out-File -FilePath $ArcServerOnboardingDetail -Append
+"Service Principal ID: $($AppId)`n------------------------------------------------------------------" | Out-File -FilePath $ArcServerOnboardingDetail
+"Service Principal Secret: $($Secret)`n------------------------------------------------------------------`n" | Out-File -FilePath $ArcServerOnboardingDetail -Append
 
 Write-Host -ForegroundColor Green "The AppId, Secret, and the onboarding script have been saved to $ArcServerOnboardingDetail"
 Write-Host
