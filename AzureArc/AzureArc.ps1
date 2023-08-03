@@ -58,17 +58,21 @@ New-AzResourceGroup -Name $resourceGroup -Location $location | Out-Null
 
 # 4. Create a remote share
 Write-Host "Creating a remote share" -ForegroundColor Yellow
+$DomainName = (Get-ADDomain).DNSRoot
 $path = "$env:HOMEDRIVE\AzureArc"
 If(!(Test-Path -PathType container $path))
 {
-      New-Item -ItemType Directory -Path $path
+    New-Item -Path $path -ItemType Directory | Out-Null
+    $parameters = @{
+        Name = "AzureArc"
+        Path = "$($path)"
+        FullAccess = "$env:USERDOMAIN\$env:USERNAME", "$DomainName\Domain Admins"
+        ChangeAccess = "$DomainName\Domain Users", "$DomainName\Domain Computers", "$DomainName\Domain Controllers"
+    }
+    New-SmbShare @parameters | Out-Null
 }
-
-New-SmbShare -Name "AzureArc" -Path $path -FullAccess "$env:USERDOMAIN\$env:USERNAME" | Out-Null
-Grant-SmbShareAccess -Name "AzureArc" -AccountName "Domain Controllers" -AccessRight Full -Force | Out-Null
-Grant-SmbShareAccess -Name "AzureArc" -AccountName "Admins" -AccessRight Full -Force | Out-Null
-Grant-SmbShareAccess -Name "AzureArc" -AccountName "Domain Computers" -AccessRight Full -Force | Out-Null
 $RemoteShare = (Get-SmbShare | Where-Object { $_.Name -eq "AzureArc" }).Name
+
 
 Write-Host "Downloading the Azure Connected Machine Agent and the Arc enabled servers group policy" -ForegroundColor Yellow
 Invoke-WebRequest -Uri "https://aka.ms/AzureConnectedMachineAgent" -OutFile "$path\AzureConnectedMachineAgent.msi"
@@ -106,7 +110,7 @@ $TenantId = $subs[$subRank - 1].TenantId
 
 $DomainServersOU = (Get-ADOrganizationalUnit -Filter 'Name -Like "*Servers*"').DistinguishedName
 $GPOName = (Get-GPO -All -Domain $DomainFQDN | Where-Object {$_.DisplayName -Like "*MSFT*"}).DisplayName  
-Write-Host "Linking the GPO to the $DomainServersOU Organizational Unit" -ForegroundColor Yellow
+Write-Host "`nLinking the GPO to the $DomainServersOU Organizational Unit" -ForegroundColor Yellow
 New-GPLink -Name "$GPOName" -Target "$DomainServersOU" -LinkEnabled Yes | Out-Null
 
 "Service Principal ID: $($AppId)`n------------------------------------------------------------------" | Out-File -FilePath $ArcServerOnboardingDetail
@@ -121,5 +125,5 @@ New-GPLink -Name "$GPOName" -Target "$DomainServersOU" -LinkEnabled Yes | Out-Nu
 -Location $Location `
 -TenantId $TenantId" | Out-File -FilePath $ArcServerOnboardingDetail -Append
 
-Write-Host -ForegroundColor Green "The AppId, Secret, and the onboarding script have been saved to $ArcServerOnboardingDetail"
+Write-Host -ForegroundColor Yellow "The AppId, Secret, and the onboarding script have been saved to $ArcServerOnboardingDetail"
 Write-Host
