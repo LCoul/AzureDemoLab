@@ -107,16 +107,19 @@ function Enable-JITAccess {
     
     $Ports = @("3389", "22")
     $SelectedPorts = @()
+    $VMConnect = "Connect to VM $VMName using the following command: "
 
     if($VMOSType -eq "Windows") {
         Write-Output "Windows VM selected, TCP port 3389 will be opened for Just-In-Time access"
         $SelectedPorts += $Ports[0]
         $Ports += "3389"
+        $VMConnect += "mstsc /v:"
     }
     elseif ($VMOSType -eq "Linux") {
         Write-Output "Linux VM selected, TCP port 22 will be opened for Just-In-Time access"
         $SelectedPorts += $Ports[1]
         $Ports += "22"
+        $VMConnect += "ssh@"
     }
 
     if ($SelectedPorts.Count -eq 0) {
@@ -183,8 +186,8 @@ function Enable-JITAccess {
 
     Write-Host "JIT access enabled for virtual machine $VMName`n" -ForegroundColor Green
 
-    $VMPublicIP = ((Get-AzNetworkInterface ).IpConfigurations.PublicIpAddress.Id | Foreach-Object -Process {$_.Split('/')| Select-Object -Last 1} | 
-    Foreach-Object -Process {Get-AzPublicIpAddress -Name $_}).IpAddress
+    $VMPublicIP= (Get-AzPublicIpAddress -ResourceGroupName $ResourceGroupName | Where-Object {$_.name -like "*$VMName*" }).IpAddress 
     Write-Host "Public IP address of the VM $VMName is $VMPublicIP" -ForegroundColor Cyan
+    Write-Host "$($VMConnect)$($VMPublicIP)"  -ForegroundColor Yellow
 }
 Enable-JITAccess -Verbose
