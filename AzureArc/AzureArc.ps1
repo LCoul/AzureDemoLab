@@ -63,7 +63,11 @@ If(!(Test-Path -PathType container $path))
 {
       New-Item -ItemType Directory -Path $path
 }
+
 New-SmbShare -Name "AzureArc" -Path $path -FullAccess "$env:USERDOMAIN\$env:USERNAME" | Out-Null
+Grant-SmbShareAccess -Name "AzureArc" -AccountName "Domain Controllers" -AccessRight Full -Force | Out-Null
+Grant-SmbShareAccess -Name "AzureArc" -AccountName "Admins" -AccessRight Full -Force | Out-Null
+Grant-SmbShareAccess -Name "AzureArc" -AccountName "Domain Computers" -AccessRight Full -Force | Out-Null
 $RemoteShare = (Get-SmbShare | Where-Object { $_.Name -eq "AzureArc" }).Name
 
 Write-Host "Downloading the Azure Connected Machine Agent and the Arc enabled servers group policy" -ForegroundColor Yellow
@@ -76,10 +80,9 @@ Expand-Archive -LiteralPath "$($path)\ArcEnabledServersGroupPolicy_v1.0.5.zip" -
 Set-Location -Path "$($path)\ArcEnabledServersGroupPolicy_v1.0.5"
 
 
-
 Write-Host "Creating a service principal" -ForegroundColor Yellow
 $ArcServerOnboardingDetail = New-Item -ItemType File -Path "$path\ArcServerOnboarding.txt"
-$ServicePrincipal = New-AzADServicePrincipal -DisplayName "Arc server onboarding account" -Role "Azure Connected Machine Onboarding"
+$ServicePrincipal = New-AzADServicePrincipal -DisplayName "Arc server onboarding account" -Role "Azure Connected Machine Onboarding" -Scope "/subscriptions/$subId/resourceGroups/$resourceGroup"
 $ServicePrincipal | Format-Table AppId, @{ Name = "Secret"; Expression = { $_.PasswordCredentials.SecretText } }
 
 $AppId = $ServicePrincipal.AppId
@@ -100,6 +103,12 @@ $TenantId = $subs[$subRank - 1].TenantId
 -Location $Location `
 -TenantId $TenantId
 
+
+$DomainServersOU = (Get-ADOrganizationalUnit -Filter 'Name -Like "*Servers*"').DistinguishedName
+$GPOName = (Get-GPO -All -Domain $DomainFQDN | Where-Object {$_.DisplayName -Like "*MSFT*"}).DisplayName  
+Write-Host "Linking the GPO to the $DomainServersOU Organizational Unit" -ForegroundColor Yellow
+New-GPLink -Name "$GPOName" -Target "$DomainServersOU" -LinkEnabled Yes | Out-Null
+
 "Service Principal ID: $($AppId)`n------------------------------------------------------------------" | Out-File -FilePath $ArcServerOnboardingDetail
 "Service Principal Secret: $($Secret)`n------------------------------------------------------------------`n" | Out-File -FilePath $ArcServerOnboardingDetail -Append
 ".\DeployGPO.ps1 -DomainFQDN $DomainFQDN `
@@ -114,4 +123,3 @@ $TenantId = $subs[$subRank - 1].TenantId
 
 Write-Host -ForegroundColor Green "The AppId, Secret, and the onboarding script have been saved to $ArcServerOnboardingDetail"
 Write-Host
-
