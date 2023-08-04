@@ -119,7 +119,7 @@ function Enable-JITAccess {
         Write-Output "Linux VM selected, TCP port 22 will be opened for Just-In-Time access"
         $SelectedPorts += $Ports[1]
         $Ports += "22"
-        $VMConnect += "ssh@"
+        $VMConnect += "ssh user@"
     }
 
     if ($SelectedPorts.Count -eq 0) {
