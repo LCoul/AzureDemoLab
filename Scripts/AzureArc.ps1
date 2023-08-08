@@ -45,7 +45,7 @@ while ($resourceGroup -eq "") {
     Write-Host "You must enter a name for your new resource group" -ForegroundColor Yellow
     $resourceGroup = Read-Host "Provide a name for your new resource group" 
 }
-$resourceGroup = $resourceGroup + (Get-Random -Minimum 100000 -Maximum 1000000)
+$resourceGroup = $resourceGroup #+ (Get-Random -Minimum 100000 -Maximum 1000000)
 $location = Read-Host "Provide a location for your deployment (e.g. West US, WestUS, East US,EastUS2, etc.)"
 $locations = @("eastus", "eastus2", "westus", "westus2", "east us", "east us 2", "west us", "west us 2")
 while ($locations -notcontains $location.ToLower()) {
